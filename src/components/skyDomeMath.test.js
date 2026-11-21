@@ -66,7 +66,7 @@ describe('dir(az, el) shared sky dome placement', () => {
   });
 
   it('at south_pole the Sun and Earth stay near the horizon ring', () => {
-    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data.json'), 'utf-8'));
+    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'data/validation_data.json'), 'utf-8'));
     const sp = data.sites.find((s) => s.id === 'south_pole');
     for (let i = 0; i < sp.sun_elev.length; i += 24) {
       const sun = azElTo3D(sp.sun_az[i], sp.sun_elev[i], 50);

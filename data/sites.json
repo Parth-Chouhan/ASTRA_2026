@@ -1,0 +1,229 @@
+{
+  "schema_version": 2,
+  "coordinate_convention": {
+    "system": "Lunar geodetic (planetodetic)",
+    "center": "coord@301",
+    "coord_type": "GEODETIC",
+    "reference_body": "Moon (NAIF/Horizons ID 301, MEAN_ME pole/equator, R = 1737.4 km sphere)",
+    "longitude": "East-positive degrees in [-180, 180] or [0, 360) (Horizons accepts both and normalises internally to [0, 360) East-positive)",
+    "latitude": "North-positive degrees in [-90, 90]",
+    "altitude": "Kilometres above lunar reference sphere (R = 1737.4 km)",
+    "notes": "Verified against live JPL Horizons API response header: 'Center geodetic : E-lon(deg),Lat(deg),Alt(km)', 'Center pole/equ : MEAN_ME (high precision) {East-longitude positive}', 'Center radii : 1737.4, 1737.4, 1737.4 km'."
+  },
+  "candidate_sites": [
+    {
+      "id": "apollo11",
+      "name": "Apollo 11 Lunar Module Eagle",
+      "short_name": "Apollo 11",
+      "category": "verified_candidate",
+      "fetch_enabled": true,
+      "latitude": 0.67416,
+      "longitude": 23.47314,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "LROC ACT QuickMap",
+      "source_layer": "Anthropogenic Features",
+      "object_id": "A11_LM",
+      "source_legacy": "Quickmap (LROC), layer Anthropogenic Features, object A11_LM, read 2026-11-21",
+      "coordinate_status": "verified",
+      "original_coordinates": {
+        "latitude_deg": 0.67416,
+        "longitude_deg": 23.47314,
+        "convention": "East-positive longitude, North-positive latitude"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "23.47314,0.67416,0.0",
+        "longitude_conversion": "none (already East-positive)",
+        "longitude_deg_east": 23.47314,
+        "latitude_deg_north": 0.67416,
+        "altitude_km": 0.0
+      },
+      "image": "apollo11.png",
+      "notes": "Historic near-side equatorial landing site (Mare Tranquillitatis). Serves as both a public comparison site and an equatorial near-side physical reference."
+    },
+    {
+      "id": "chandrayaan3",
+      "name": "Chandrayaan-3 Vikram Landing Site",
+      "short_name": "Chandrayaan-3 (Vikram)",
+      "category": "verified_candidate",
+      "fetch_enabled": true,
+      "latitude": -69.374,
+      "longitude": 32.3187,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "LROC ACT QuickMap",
+      "source_layer": "Anthropogenic Features",
+      "object_id": "Vikram2",
+      "source_legacy": "Quickmap (LROC), layer Anthropogenic Features, object Vikram2, read 2026-11-21",
+      "coordinate_status": "verified",
+      "original_coordinates": {
+        "latitude_deg": -69.374,
+        "longitude_deg": 32.3187,
+        "convention": "East-positive longitude, North-positive latitude"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "32.3187,-69.374,0.0",
+        "longitude_conversion": "none (already East-positive)",
+        "longitude_deg_east": 32.3187,
+        "latitude_deg_north": -69.374,
+        "altitude_km": 0.0
+      },
+      "image": "chandrayaan3.png",
+      "notes": "Southern high-latitude near-side landing site (Statio Shiv Shakti)."
+    },
+    {
+      "id": "malapert",
+      "name": "Malapert Massif (region representative point)",
+      "short_name": "Malapert Massif (region centre)",
+      "category": "approximate_region_representative",
+      "fetch_enabled": true,
+      "latitude": -85.98,
+      "longitude": -0.23,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "LROC ACT QuickMap",
+      "source_layer": "A3: Candidate Landing Regions 2022",
+      "object_id": null,
+      "source_legacy": "Quickmap (LROC), layer A3: Candidate Landing Regions 2022, polygon centre (region ~440 km2), read 2026-11-21",
+      "coordinate_status": "approximate_polygon_representative",
+      "original_coordinates": {
+        "latitude_deg": -85.98,
+        "longitude_deg": -0.23,
+        "convention": "East-positive longitude in [-180, 180], North-positive latitude",
+        "geometry_type": "polygon_representative_point",
+        "region_area_km2_approx": 440,
+        "polygon_vertices": null,
+        "polygon_vertices_status": "not_yet_exported_from_quickmap"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "359.77,-85.98,0.0",
+        "longitude_conversion": "converted -0.23 deg East to 359.77 deg East (lon + 360) for unambiguous [0, 360) East-positive representation",
+        "longitude_deg_east": 359.77,
+        "latitude_deg_north": -85.98,
+        "altitude_km": 0.0
+      },
+      "image": "malapert.png",
+      "notes": "Artemis III candidate landing region. The QuickMap feature is a ~440 km^2 polygon, not a point landing site; this coordinate is an approximate polygon representative point."
+    },
+    {
+      "id": "mons_mouton",
+      "name": "Mons Mouton",
+      "short_name": "Mons Mouton",
+      "category": "approximate_region_representative",
+      "fetch_enabled": true,
+      "latitude": -84.6,
+      "longitude": 31.0,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "LROC ACT QuickMap",
+      "source_layer": "Nomenclature",
+      "object_id": null,
+      "source_legacy": "Quickmap (LROC), layer Nomenclature, name-centre point (rounded to 0.1 degree), read 2026-11-21",
+      "coordinate_status": "approximate_nomenclature_centre",
+      "original_coordinates": {
+        "latitude_deg": -84.6,
+        "longitude_deg": 31.0,
+        "convention": "East-positive longitude, North-positive latitude"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "31.0,-84.6,0.0",
+        "longitude_conversion": "none (already East-positive)",
+        "longitude_deg_east": 31.0,
+        "latitude_deg_north": -84.6,
+        "altitude_km": 0.0
+      },
+      "image": "mons_mouton.png",
+      "notes": "South-polar plateau (Artemis III candidate region). Coordinates are from the IAU/QuickMap Nomenclature name-centre point rounded to 0.1 deg."
+    },
+    {
+      "id": "connecting_ridge",
+      "name": "Connecting Ridge",
+      "short_name": "Connecting Ridge",
+      "category": "unverified_candidate",
+      "fetch_enabled": false,
+      "latitude": null,
+      "longitude": null,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "Pending LROC ACT QuickMap confirmation",
+      "source_layer": null,
+      "object_id": null,
+      "source_legacy": "TODO_VERIFY: Pending QuickMap confirmation",
+      "coordinate_status": "unverified_missing_coordinates",
+      "original_coordinates": null,
+      "horizons_observer_coordinates": null,
+      "image": null,
+      "notes": "Intended Artemis III south-polar comparison site (ridge connecting Shackleton and de Gerlache craters). Excluded from dataset generation until coordinates are read and verified from LROC ACT QuickMap."
+    }
+  ],
+  "validation_sites": [
+    {
+      "id": "south_pole",
+      "name": "South Pole (reference point)",
+      "short_name": "South Pole (reference)",
+      "category": "validation_reference",
+      "fetch_enabled": true,
+      "latitude": -89.9,
+      "longitude": 0.0,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "Validation reference (near-pole point; IAU Shackleton crater vicinity)",
+      "source_layer": "Validation Reference",
+      "object_id": null,
+      "source_legacy": "Approximate: IAU name centre of Shackleton crater, used as the pole reference, not a rim or landing site",
+      "coordinate_status": "validation_reference",
+      "original_coordinates": {
+        "latitude_deg": -89.9,
+        "longitude_deg": 0.0,
+        "convention": "East-positive longitude, North-positive latitude"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "0.0,-89.9,0.0",
+        "longitude_conversion": "none",
+        "longitude_deg_east": 0.0,
+        "latitude_deg_north": -89.9,
+        "altitude_km": 0.0
+      },
+      "image": null,
+      "notes": "Validation-only south-polar reference point (-89.9 deg S). Not a public candidate landing site. Used to verify that solar elevation remains within ~1.5-1.65 deg of the horizon year-round."
+    },
+    {
+      "id": "tsiolkovskiy",
+      "name": "Tsiolkovskiy Crater (far-side reference)",
+      "short_name": "Tsiolkovskiy Crater",
+      "category": "validation_reference",
+      "fetch_enabled": true,
+      "latitude": -20.0,
+      "longitude": 129.0,
+      "altitude_km": 0.0,
+      "altitude_unit": "km",
+      "altitude_reference": "Lunar reference sphere (1737.4 km)",
+      "coordinate_source": "Validation reference (far-side check)",
+      "source_layer": "Validation Reference",
+      "object_id": null,
+      "source_legacy": "Validation reference: far-side crater (~20S, 129E), used only for physical sanity check",
+      "coordinate_status": "validation_reference",
+      "original_coordinates": {
+        "latitude_deg": -20.0,
+        "longitude_deg": 129.0,
+        "convention": "East-positive longitude, North-positive latitude"
+      },
+      "horizons_observer_coordinates": {
+        "site_coord": "129.0,-20.0,0.0",
+        "longitude_conversion": "none",
+        "longitude_deg_east": 129.0,
+        "latitude_deg_north": -20.0,
+        "altitude_km": 0.0
+      },
+      "image": null,
+      "notes": "Validation-only far-side reference location. Not a public candidate landing site. Used to verify that Earth is never visible above the geometric horizon."
+    }
+  ]
+}
+

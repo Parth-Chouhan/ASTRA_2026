@@ -266,3 +266,128 @@ describe('startAngleDeg parameter', () => {
     expect(diffs).toBeGreaterThan(0);
   });
 });
+
+// ── Phase 3: Controlled Geometric & Scientific Validation Tests ─────
+
+import {
+  satPositionMoonFixed,
+  sitePosition,
+  satelliteElevationAzimuth,
+  canSeeEarth,
+  interpolateEarthElevation,
+} from './satellite.js';
+
+describe('Phase 3: orbital mathematics & input validation', () => {
+  it('rejects invalid altitudes (zero, negative, NaN, out-of-bounds)', () => {
+    expect(() => orbitalPeriodS(0)).toThrow(RangeError);
+    expect(() => orbitalPeriodS(-50)).toThrow(RangeError);
+    expect(() => orbitalPeriodS(NaN)).toThrow(RangeError);
+    expect(() => orbitalPeriodS(100000)).toThrow(RangeError);
+  });
+
+  it('preserves exact orbital radius a = R + h after Moon-fixed rotation', () => {
+    const h = 100;
+    const expectedR = R_MOON + h;
+    for (const t of [0, 1234, 50000, 86400 * 10]) {
+      const p = satPositionMoonFixed(t, h, 0.7);
+      const r = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+      expect(r).toBeCloseTo(expectedR, 8);
+    }
+  });
+
+  it('respects initial orbital angle at t = 0', () => {
+    const p0 = satPositionMoonFixed(0, 100, 0);
+    expect(p0.x).toBeCloseTo(R_MOON + 100, 6);
+    expect(p0.y).toBeCloseTo(0, 6);
+    expect(p0.z).toBeCloseTo(0, 6);
+
+    const p90 = satPositionMoonFixed(0, 100, Math.PI / 2);
+    expect(p90.x).toBeCloseTo(0, 6);
+    expect(p90.z).toBeCloseTo(R_MOON + 100, 6);
+  });
+});
+
+describe('Phase 3: coordinate geometry & azimuth orientation', () => {
+  it('computes exact site position and ENU basis for equatorial and polar sites', () => {
+    const eq0 = sitePosition(0, 0);
+    expect(eq0.ux).toBeCloseTo(1, 8);
+    expect(eq0.ey).toBeCloseTo(1, 8);
+    expect(eq0.nz).toBeCloseTo(1, 8);
+
+    const eq90E = sitePosition(0, 90);
+    expect(eq90E.uy).toBeCloseTo(1, 8);
+    expect(eq90E.ex).toBeCloseTo(-1, 8);
+
+    const northPole = sitePosition(90, 0);
+    expect(northPole.uz).toBeCloseTo(1, 8);
+
+    const southPole = sitePosition(-90, 0);
+    expect(southPole.uz).toBeCloseTo(-1, 8);
+  });
+
+  it('gives azimuth 0=N, 90=E, 180=S, 270=W for controlled satellite positions', () => {
+    const site = sitePosition(0, 0); // at (R, 0, 0); up=+x, east=+y, north=+z
+    const d = 100;
+    expect(satelliteElevationAzimuth({ x: site.x + d, y: 0, z: d }, site).azimuth).toBeCloseTo(0, 6);
+    expect(satelliteElevationAzimuth({ x: site.x + d, y: d, z: 0 }, site).azimuth).toBeCloseTo(90, 6);
+    expect(satelliteElevationAzimuth({ x: site.x + d, y: 0, z: -d }, site).azimuth).toBeCloseTo(180, 6);
+    expect(satelliteElevationAzimuth({ x: site.x + d, y: -d, z: 0 }, site).azimuth).toBeCloseTo(270, 6);
+  });
+
+  it('handles zero elevation and rejects invalid satellite/site inputs', () => {
+    const site = sitePosition(0, 0);
+    // Tangent to horizon at (R, 100, 0) -> dot(v, up) = 0 -> el = 0 deg
+    const res = satelliteElevationAzimuth({ x: site.x, y: 100, z: 0 }, site);
+    expect(res.elevation).toBeCloseTo(0, 6);
+    expect(() => sitePosition(95, 0)).toThrow(RangeError);
+    expect(() => satelliteElevationAzimuth({ x: NaN, y: 0, z: 0 }, site)).toThrow(RangeError);
+  });
+});
+
+describe('Phase 3: Earth line-of-sight geometry (canSeeEarth)', () => {
+  it('distinguishes near-side, far-side occluded, beyond-limb, and exact tangent', () => {
+    expect(canSeeEarth({ x: 100, y: 0, z: 0 })).toBe(true); // near side
+    expect(canSeeEarth({ x: -1837.4, y: 0, z: 0 })).toBe(false); // directly behind Moon
+    expect(canSeeEarth({ x: -100, y: R_MOON + 50, z: 0 })).toBe(true); // beyond lunar limb
+    expect(canSeeEarth({ x: -100, y: R_MOON, z: 0 })).toBe(false); // exact tangent = occluded
+  });
+});
+
+describe('Phase 3: pass metadata, single-sample window, and Earth interpolation', () => {
+  it('populates pass timestamps, interpolated durations, and peak azimuth', () => {
+    const r = simulate(SOUTH_POLE, START, '2026-01-02T00:00:00Z', 100, 0);
+    expect(r.passes.length).toBeGreaterThan(8);
+    for (const p of r.passes) {
+      expect(p.durationMinutes).toBeGreaterThan(0);
+      expect(p.maxElev).toBeGreaterThan(0);
+      expect(p.maxElevAzimuth).toBeGreaterThanOrEqual(0);
+      expect(p.maxElevAzimuth).toBeLessThan(360);
+      expect(typeof p.startTime).toBe('string');
+      expect(typeof p.endTime).toBe('string');
+    }
+  });
+
+  it('handles single-sample window (start === end) cleanly', () => {
+    const r = simulate(SOUTH_POLE, START, START, 100, 0);
+    expect(r.elevations.length).toBe(1);
+    expect(r.longestGapMinutes).toBe(0);
+  });
+
+  it('linearly interpolates 2-hour Earth elevation and returns null on missing data', () => {
+    const site = {
+      lat: 0,
+      lon: 0,
+      start: '2026-01-01T00:00:00Z',
+      step_hours: 2,
+      earth_elev: [-2, 2],
+    };
+    // Midpoint 01:00Z should interpolate to 0.0
+    const tMid = Date.parse('2026-01-01T01:00:00Z') / 1000;
+    expect(interpolateEarthElevation(site, tMid)).toBeCloseTo(0, 6);
+    // 01:30Z should interpolate to +1.0
+    const t34 = Date.parse('2026-01-01T01:30:00Z') / 1000;
+    expect(interpolateEarthElevation(site, t34)).toBeCloseTo(1, 6);
+    // Missing earth_elev -> null
+    expect(interpolateEarthElevation({ lat: 0, lon: 0 }, tMid)).toBeNull();
+  });
+});

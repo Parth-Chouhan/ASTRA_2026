@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+html, body {
+  margin: 0;
+  background-color: #0b0f19;
+  color: #f3f4f6;
+  overflow-x: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Touch-friendly range sliders for mobile (390px) and desktop */
+input[type="range"] {
+  touch-action: pan-x;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 20px;
+  height: 20px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+}

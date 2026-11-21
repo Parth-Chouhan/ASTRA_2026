@@ -1,0 +1,25 @@
+{
+  "facts": [
+    {
+      "text": "Canada's first lunar rover was set to explore a region of the Moon's south pole to gather scientific data to help find water ice. The project has since ended.",
+      "source_url": "https://www.asc-csa.gc.ca/eng/astronomy/moon-exploration/first-canadian-rover-to-explore-the-moon.asp",
+      "source_title": "First Canadian rover to explore the Moon (Canadian Space Agency)",
+      "evidence": "\"explore a region of the lunar south pole and gather scientific data to help find water ice\"; status: \"Project ended\"",
+      "verified": true
+    },
+    {
+      "text": "Canadarm3, Canada's planned contribution to the Lunar Gateway, consists of a large 8.5-metre arm and a smaller, more dexterous arm. It is in development, with delivery no earlier than 2029, and the date may change.",
+      "source_url": "https://www.asc-csa.gc.ca/eng/canadarm3/about.asp",
+      "source_title": "About Canadarm3 (Canadian Space Agency)",
+      "evidence": "\"Canadarm3 will be Canada's contribution to Gateway\"; \"a large, 8.5-metre-long arm\"; \"a smaller, more dexterous arm\"; status: In development, \"No earlier than 2029\"",
+      "verified": true
+    },
+    {
+      "text": "Canadian Space Agency astronaut Jeremy Hansen flew on Artemis II and became the first Canadian to go on a mission around the Moon.",
+      "source_url": "https://www.asc-csa.gc.ca/eng/missions/artemis-ii/",
+      "source_title": "Artemis II (Canadian Space Agency)",
+      "evidence": "\"Canadian Space Agency (CSA) astronaut Jeremy Hansen made history as the first Canadian to go on a mission around the Moon.\"",
+      "verified": true
+    }
+  ]
+}

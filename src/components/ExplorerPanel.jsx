@@ -1,6 +1,6 @@
 import React from 'react';
 import { Compass, Sun, Globe, Radio, Moon, ExternalLink } from 'lucide-react';
-import explorerData from '../data/explorer.json';
+import explorerData from '../../data/explorer.json';
 
 /**
  * ExplorerPanel – plain-language guide for a general audience.

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'fs';
 import { resolve } from 'path';
 
-const QA_DIR = resolve(process.cwd(), '../docs/qa');
+const QA_DIR = resolve(process.cwd(), 'docs/qa');
 mkdirSync(QA_DIR, { recursive: true });
 
 const SITES = [

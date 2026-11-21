@@ -42,7 +42,7 @@ describe('dir(az, el) shared sky dome placement', () => {
   });
 
   it('acceptance: Sun at az near 90 and el near 0 is over the E label', () => {
-    const data = JSON.parse(readFileSync(resolve(process.cwd(), '../data/data.json'), 'utf-8'));
+    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data.json'), 'utf-8'));
     const apollo = data.sites.find((s) => s.id === 'apollo11');
     // Find timestamp where Sun is closest to az=90, el=0 (idx 2754: az=89.88°, el=-0.01°)
     let bestIdx = 0;
@@ -59,14 +59,14 @@ describe('dir(az, el) shared sky dome placement', () => {
   });
 
   it('at apollo11 around 2026-01-01 12:00 the Sun is almost overhead', () => {
-    const data = JSON.parse(readFileSync(resolve(process.cwd(), '../data/data.json'), 'utf-8'));
+    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data.json'), 'utf-8'));
     const apollo = data.sites.find((s) => s.id === 'apollo11');
     const p = azElTo3D(apollo.sun_az[6], apollo.sun_elev[6], 50);
     expect(p.y).toBeGreaterThan(49.5);
   });
 
   it('at south_pole the Sun and Earth stay near the horizon ring', () => {
-    const data = JSON.parse(readFileSync(resolve(process.cwd(), '../data/data.json'), 'utf-8'));
+    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data.json'), 'utf-8'));
     const sp = data.sites.find((s) => s.id === 'south_pole');
     for (let i = 0; i < sp.sun_elev.length; i += 24) {
       const sun = azElTo3D(sp.sun_az[i], sp.sun_elev[i], 50);
@@ -96,7 +96,7 @@ describe('localAzElToMoonFixed (Moon overview frame)', () => {
   });
 
   it('sanity: at apollo11 local noon Sun points at site and Earth is near (1, 0, 0)', () => {
-    const data = JSON.parse(readFileSync(resolve(process.cwd(), '../data/data.json'), 'utf-8'));
+    const data = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data.json'), 'utf-8'));
     const apollo = data.sites.find((s) => s.id === 'apollo11');
     const siteUp = latLonToMoonFixed(apollo.lat, apollo.lon, 1);
     const sunDir = localAzElToMoonFixed(apollo.lat, apollo.lon, apollo.sun_az[6], apollo.sun_elev[6]);

@@ -1,16 +1,51 @@
-# React + Vite
+# Lunar Landing Site Evaluator
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Fast first-screening tool for lunar landing sites: when are the Sun (power) and Earth (direct comms) above the local horizon?
 
-Currently, two official plugins are available:
+Built for a space hackathon (Domain 05: Moon, Mars and deep-space exploration).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Quick Start
 
-## React Compiler
+```bash
+npm install
+npm run dev      # Start dev server
+npm run build    # Production build
+npm run test     # Run unit tests
+npm run lint     # Lint with oxlint
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Project Structure
 
-## Expanding the Oxlint configuration
+```
+├── public/              Static assets (images, data files, favicon)
+├── src/
+│   ├── main.jsx         Entry point
+│   ├── App.jsx          Root component
+│   ├── components/      UI components (gauges, charts, 3D views, panels)
+│   ├── metrics/         Elevation-based metrics (sunlit %, Earth visible %, etc.)
+│   └── satellite/       Relay satellite orbit simulator
+├── data/                Data pipeline reference files
+├── e2e/                 End-to-end Playwright tests
+├── docs/                Documentation & workflow references
+├── scripts/             Python utility scripts
+├── index.html           Vite entry
+├── vite.config.js       Vite + React + Tailwind config
+└── playwright.config.js E2E test config
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Architecture
+
+```
+JPL Horizons API -> Python fetch script -> public/data.json -> React + Plotly (static site)
+                    (caches every raw response)                 (all metrics, dome, satellite computed in browser)
+```
+
+## Tech Stack
+
+- **Framework**: React 19 + Vite 8
+- **Styling**: Tailwind CSS 4
+- **Charts**: Plotly.js / react-plotly.js
+- **3D**: Three.js
+- **Icons**: Lucide React
+- **Testing**: Vitest (unit), Playwright (e2e)
+- **Linting**: oxlint

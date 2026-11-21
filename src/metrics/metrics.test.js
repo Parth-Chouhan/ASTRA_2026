@@ -168,7 +168,7 @@ describe('real data verification', () => {
 
   // Load data.json from the repo root
   try {
-    const dataPath = resolve(__dirname, '../../../data/data.json');
+    const dataPath = resolve(__dirname, '../../public/data.json');
     const raw = readFileSync(dataPath, 'utf-8');
     const json = JSON.parse(raw);
     sites = json.sites;

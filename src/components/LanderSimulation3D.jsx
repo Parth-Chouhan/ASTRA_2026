@@ -1069,7 +1069,7 @@ export default function LanderSimulation3D({
           className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[11px] tracking-wider
             bg-[#020a1ad9] border border-blue-500/15 text-blue-300/70 hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-200
             backdrop-blur-xl cursor-pointer transition-all">
-          ← Mission Config
+          ← Mission Dates
         </button>
       )}
 

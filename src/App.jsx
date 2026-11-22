@@ -37,6 +37,7 @@ function longestDarkBlock(sunElev, startIdx, end, stepHours) {
 export default function App() {
   const [showLanding, setShowLanding] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
+  const [configStep, setConfigStep] = useState(1);
   const [missionConfig, setMissionConfig] = useState(null);
   const [data, setData] = useState(null);
   const [dataSourceName, setDataSourceName] = useState('');
@@ -79,7 +80,9 @@ export default function App() {
     return (
       <MissionConfigPage
         data={data}
-        onBack={() => { setShowConfig(false); setShowLanding(true); }}
+        initialStep={configStep}
+        initialConfig={missionConfig}
+        onBack={() => { setShowConfig(false); setShowLanding(true); setConfigStep(1); }}
         onLaunch={(config) => {
           setMissionConfig(config);
           setSiteId(config.siteId);
@@ -119,7 +122,10 @@ export default function App() {
       siteName={site?.name || site?.full_name}
       missionConfig={missionConfig}
       siteData={site}
-      onBack={() => { setShowConfig(true); setMissionConfig(null); }}
+      onBack={() => {
+        setShowConfig(true);
+        setConfigStep(2); // Return to Step 2 (Dates & Mission Calendar)
+      }}
     />
   );
 }

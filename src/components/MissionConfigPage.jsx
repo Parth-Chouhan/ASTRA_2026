@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import MissionCalendar from './MissionCalendar.jsx';
 import {
   sunlitPercent,
   earthVisiblePercent,
@@ -53,13 +54,19 @@ function dateToIndex(site, dateStr) {
   return Math.max(0, Math.min(idx, site.sun_elev.length - 1));
 }
 
-export default function MissionConfigPage({ data, onLaunch, onBack }) {
+export default function MissionConfigPage({
+  data,
+  initialStep = 1,
+  initialConfig = null,
+  onLaunch,
+  onBack,
+}) {
   // ── State ──
-  const [step, setStep] = useState(1); // 1=location, 2=dates, 3=results
-  const [siteId, setSiteId] = useState(data?.sites[0]?.id ?? '');
-  const [transitProfile, setTransitProfile] = useState('direct');
-  const [launchDate, setLaunchDate] = useState('2026-03-15');
-  const [missionDays, setMissionDays] = useState(14);
+  const [step, setStep] = useState(initialStep); // 1=location, 2=dates, 3=results
+  const [siteId, setSiteId] = useState(initialConfig?.siteId ?? data?.sites[0]?.id ?? '');
+  const [transitProfile, setTransitProfile] = useState(initialConfig?.transitProfile ?? 'direct');
+  const [launchDate, setLaunchDate] = useState(initialConfig?.launchDate ?? '2026-03-15');
+  const [missionDays, setMissionDays] = useState(initialConfig?.windowDays ?? initialConfig?.missionDays ?? 14);
   const [factIdx, setFactIdx] = useState(0);
   const [animateIn, setAnimateIn] = useState(true);
 
@@ -234,7 +241,16 @@ export default function MissionConfigPage({ data, onLaunch, onBack }) {
       {/* ── NAV ── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 sm:px-10 py-4 bg-[#04080fcc] backdrop-blur-xl border-b border-blue-500/10">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors text-sm flex items-center gap-1 cursor-pointer">
+          <button
+            onClick={() => {
+              if (step > 1) {
+                setStep(s => s - 1);
+              } else {
+                onBack();
+              }
+            }}
+            className="text-gray-400 hover:text-white transition-colors text-sm flex items-center gap-1 cursor-pointer"
+          >
             ← Back
           </button>
           <div className="w-px h-5 bg-gray-700" />
@@ -387,41 +403,19 @@ export default function MissionConfigPage({ data, onLaunch, onBack }) {
               </div>
             </div>
 
-            {/* Date picker area */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* Launch Date */}
-              <div className="bg-[#0a1628]/70 border border-blue-500/15 rounded-xl p-5">
-                <label className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1 block">
-                  🚀 Launch Date (from Earth)
-                </label>
-                <p className="text-[10px] text-gray-500 mb-3">When the rocket lifts off from the launch pad</p>
-                <input
-                  type="date"
-                  value={launchDate}
-                  min={dataStart}
-                  max={dataEnd}
-                  onChange={e => e.target.value && setLaunchDate(e.target.value)}
-                  className="w-full bg-[#162038] border border-gray-700 rounded-lg px-4 py-3 text-base text-white
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-                />
-                <p className="text-[10px] text-gray-500 mt-2">
-                  Available range: {dataStart} to {dataEnd}
-                </p>
-              </div>
-
-              {/* Landing Date (auto-calculated) */}
-              <div className="bg-[#0a1628]/70 border border-emerald-500/15 rounded-xl p-5">
-                <label className="text-xs text-emerald-400 uppercase tracking-wider font-semibold mb-1 block">
-                  🌙 Landing Date (on Moon)
-                </label>
-                <p className="text-[10px] text-gray-500 mb-3">Auto-calculated: Launch + {transit.days} days transit</p>
-                <div className="w-full bg-[#162038] border border-emerald-500/20 rounded-lg px-4 py-3 text-base text-emerald-300 font-mono">
-                  {landingDate}
-                </div>
-                <p className="text-[10px] text-gray-500 mt-2">
-                  Transit time: {transit.days} days ({(transit.days * 24).toLocaleString()} hours)
-                </p>
-              </div>
+            {/* Interactive Flight Calendar */}
+            <div className="mb-8">
+              <MissionCalendar
+                site={site}
+                launchDate={launchDate}
+                onSelectLaunchDate={setLaunchDate}
+                transitDays={transit.days}
+                landingDate={landingDate}
+                missionDays={missionDays}
+                missionEndDate={missionEndDate}
+                dataStart={dataStart}
+                dataEnd={dataEnd}
+              />
             </div>
 
             {/* Mission duration */}
@@ -471,18 +465,6 @@ export default function MissionConfigPage({ data, onLaunch, onBack }) {
               <p className="text-[10px] text-gray-500 mt-3">
                 Mission ends: <span className="text-gray-300 font-mono">{missionEndDate}</span>
               </p>
-            </div>
-
-            {/* Timeline summary */}
-            <div className="bg-[#0a1628]/40 border border-blue-500/10 rounded-xl p-5 mb-8">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-3">📋 Mission Timeline Summary</p>
-              <div className="flex items-center gap-0 overflow-x-auto">
-                <TimelineBlock icon="🚀" label="Launch" date={launchDate} color="blue" />
-                <TimelineArrow label={`${transit.days} days transit`} />
-                <TimelineBlock icon="🌙" label="Landing" date={landingDate} color="emerald" />
-                <TimelineArrow label={`${missionDays} days ops`} />
-                <TimelineBlock icon="📡" label="Mission End" date={missionEndDate} color="amber" />
-              </div>
             </div>
 
             <div className="flex gap-3">

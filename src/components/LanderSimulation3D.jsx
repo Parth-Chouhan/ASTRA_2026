@@ -622,7 +622,12 @@ let engineOscNode = null;
 let engineGainNode = null;
 
 function ensureAudio() {
-  if (audioCtx) return;
+  if (audioCtx) {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+    return;
+  }
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const osc1 = audioCtx.createOscillator();
@@ -638,7 +643,12 @@ function ensureAudio() {
     engineGainNode.connect(audioCtx.destination);
     osc1.start(); osc2.start();
     engineOscNode = osc1;
-  } catch {}
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  } catch (e) {
+    console.warn("Audio error:", e);
+  }
 }
 
 function updateEngineAudio(thrustPct) {
@@ -737,6 +747,7 @@ export default function LanderSimulation3D({
   const [manual, setManual] = useState(false);
   const [manualThrust, setManualThrust] = useState(0);
   const [landingResult, setLandingResult] = useState(null);
+  const [mobileHudTab, setMobileHudTab] = useState(null); // 'flight' | 'env' | null
 
   // Format coordinates string
   const coordStr = siteLat != null && siteLon != null
@@ -774,7 +785,17 @@ export default function LanderSimulation3D({
     controls.target.set(0, MOON_R + 20, 0);
     controls.minDistance = 2;
     controls.maxDistance = 3000;
+    controls.touches = {
+      ONE: THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_PAN
+    };
     controls.update();
+    renderer.domElement.style.touchAction = 'none';
+
+    // Auto-resume audio on first touch/interaction
+    const audioInitHandler = () => { ensureAudio(); };
+    window.addEventListener('pointerdown', audioInitHandler, { once: true, passive: true });
+    window.addEventListener('touchstart', audioInitHandler, { once: true, passive: true });
 
     // Build scene
     const starData = buildStars(scene);
@@ -1218,45 +1239,85 @@ export default function LanderSimulation3D({
   const altPct = Math.max(1, tel.alt / 15000 * 100);
 
   return (
-    <div className={`relative w-full ${heightClass} overflow-hidden bg-[#020408]`}>
+    <div className={`relative w-full ${heightClass} overflow-hidden bg-[#020408] select-none touch-none`}>
       {/* Three.js mount */}
-      <div ref={mountRef} className="w-full h-full" />
-
-      {/* ── BACK BUTTON ── */}
-      {onBack && (
-        <button onClick={onBack}
-          className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-4 py-2 rounded-lg text-[11px] tracking-wider
-            bg-[#020a1ad9] border border-blue-500/15 text-blue-300/70 hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-200
-            backdrop-blur-xl cursor-pointer transition-all">
-          ← Mission Dates
-        </button>
-      )}
+      <div ref={mountRef} className="w-full h-full touch-none select-none" />
 
       {/* ── TOP BAR ── */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-2.5 bg-gradient-to-b from-[#020408f0] via-[#02040899] to-transparent pointer-events-none z-10">
-        <div className="flex items-center gap-2 pointer-events-auto ml-32">
-          <div className="w-7 h-7 rounded-full border border-blue-500/40 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full border border-blue-500/60" />
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 md:px-4 py-2 md:py-2.5 bg-gradient-to-b from-[#020408f0] via-[#02040899] to-transparent pointer-events-none z-20 gap-2">
+        <div className="flex items-center gap-2 pointer-events-auto min-w-0">
+          {onBack && (
+            <button onClick={onBack}
+              className="flex items-center gap-1 px-2.5 py-1.5 md:px-3 md:py-1.5 rounded-lg text-[10px] md:text-[11px] tracking-wider
+                bg-[#020a1ad9] border border-blue-500/20 text-blue-300/80 hover:bg-blue-500/15 hover:border-blue-500/40 hover:text-blue-200
+                backdrop-blur-xl cursor-pointer transition-all whitespace-nowrap shrink-0">
+              ← <span className="hidden sm:inline">Mission Dates</span>
+            </button>
+          )}
+          <div className="w-6 h-6 md:w-7 md:h-7 rounded-full border border-blue-500/40 flex items-center justify-center shrink-0">
+            <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full border border-blue-500/60" />
           </div>
-          <span className="text-sm font-semibold tracking-[4px] text-blue-300">ASTRA 2026</span>
+          <span className="text-xs md:text-sm font-semibold tracking-[2px] md:tracking-[4px] text-blue-300 whitespace-nowrap">ASTRA 2026</span>
           {siteName && (
-            <span className="text-[10px] text-gray-500 tracking-wider ml-1 hidden sm:inline">
+            <span className="text-[10px] text-gray-500 tracking-wider ml-1 hidden lg:inline truncate max-w-[120px]">
               · {siteName}
             </span>
           )}
         </div>
-        <span className="text-lg font-light tracking-widest text-blue-200/80 tabular-nums">{clockStr}</span>
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 pointer-events-auto">
-          <div className={`w-1.5 h-1.5 rounded-full ${status === 'LANDED' ? 'bg-emerald-400' : status === 'DESCENDING' ? 'bg-amber-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
-          <span className="text-[10px] tracking-widest text-blue-300 uppercase">{status}</span>
+        <span className="text-sm md:text-lg font-light tracking-widest text-blue-200/80 tabular-nums shrink-0">{clockStr}</span>
+        <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+          {/* Mobile HUD Toggle Button */}
+          <button
+            onClick={() => setMobileHudTab(prev => prev ? null : 'flight')}
+            className={`md:hidden flex items-center gap-1 px-2 py-1 rounded-md text-[10px] tracking-wider uppercase border transition-all ${
+              mobileHudTab ? 'bg-blue-500/30 border-blue-400 text-blue-100' : 'bg-blue-500/10 border-blue-500/20 text-blue-300'
+            }`}
+            title="Toggle Telemetry HUD"
+          >
+            HUD
+          </button>
+          <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
+            <div className={`w-1.5 h-1.5 rounded-full ${status === 'LANDED' ? 'bg-emerald-400' : status === 'DESCENDING' ? 'bg-amber-400 animate-pulse' : 'bg-blue-400 animate-pulse'}`} />
+            <span className="text-[9px] md:text-[10px] tracking-widest text-blue-300 uppercase">{status}</span>
+          </div>
         </div>
       </div>
 
-      {/* ── LEFT PANEL: Telemetry ── */}
-      <div className="absolute top-16 left-3 z-10 bg-[#020a1ae6] border border-blue-500/10 rounded-lg p-3 min-w-[195px] backdrop-blur-xl pointer-events-auto">
-        <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 mb-2 pb-1.5 border-b border-blue-500/10 flex items-center gap-1.5">
-          <span className="w-1 h-1 rounded-full bg-blue-400/70" /> Flight Telemetry
-        </h3>
+      {/* ── MINI-HUD FOR MOBILE (Always visible on mobile without blocking center) ── */}
+      <div
+        onClick={() => setMobileHudTab(prev => prev ? null : 'flight')}
+        className="md:hidden absolute top-12 left-3 z-15 flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#020a1ad9] border border-blue-500/20 backdrop-blur-md text-[9px] font-mono text-blue-200 shadow-lg cursor-pointer"
+        title="Tap to toggle full telemetry"
+      >
+        <span className="text-gray-400">ALT: <b className="text-blue-200">{fmtAlt}</b></span>
+        <span className="text-gray-400">V: <b className="text-blue-200">{tel.vSpd.toFixed(1)}</b></span>
+        <span className="text-gray-400">F: <b className="text-blue-200">{tel.fuel.toFixed(0)}%</b></span>
+        <span className="text-emerald-400 font-semibold">{PHASES[tel.phase].n.split(' ')[0]}</span>
+      </div>
+
+      {/* ── LEFT PANEL: Telemetry (Desktop: always visible / Mobile: modal card on demand) ── */}
+      <div className={`absolute top-14 md:top-16 left-3 z-20 bg-[#020a1ae6] border border-blue-500/20 rounded-lg p-3 min-w-[210px] max-w-[280px] md:max-w-none backdrop-blur-xl pointer-events-auto shadow-2xl transition-all ${
+        mobileHudTab === 'flight' ? 'block' : 'hidden md:block'
+      }`}>
+        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-blue-500/10">
+          <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 flex items-center gap-1.5">
+            <span className="w-1 h-1 rounded-full bg-blue-400/70" /> Flight Telemetry
+          </h3>
+          <div className="flex md:hidden items-center gap-1">
+            <button
+              onClick={() => setMobileHudTab('env')}
+              className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20"
+            >
+              Env →
+            </button>
+            <button
+              onClick={() => setMobileHudTab(null)}
+              className="text-[12px] px-1.5 text-red-400 hover:text-red-300 leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
         <Row label="Altitude" value={fmtAlt} />
         {/* Integrated Altitude Gauge */}
         <div className="my-1.5 px-0.5">
@@ -1283,25 +1344,41 @@ export default function LanderSimulation3D({
 
         {/* Mission Details */}
         {missionConfig && (
-          <>
-            <div className="border-t border-blue-500/10 mt-2 pt-2">
-              <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 mb-1.5 flex items-center gap-1.5">
-                <span className="w-1 h-1 rounded-full bg-emerald-400/70" /> Mission
-              </h3>
-              <Row label="Launch" value={missionConfig.launchDate} />
-              <Row label="Transit" value={`${missionConfig.transitDays}d`} />
-              <Row label="Landing" value={missionConfig.startDate} />
-              <Row label="Duration" value={`${missionConfig.windowDays}d`} />
-            </div>
-          </>
+          <div className="border-t border-blue-500/10 mt-2 pt-2">
+            <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 mb-1.5 flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-emerald-400/70" /> Mission
+            </h3>
+            <Row label="Launch" value={missionConfig.launchDate} />
+            <Row label="Transit" value={`${missionConfig.transitDays}d`} />
+            <Row label="Landing" value={missionConfig.startDate} />
+            <Row label="Duration" value={`${missionConfig.windowDays}d`} />
+          </div>
         )}
       </div>
 
-      {/* ── RIGHT PANEL: Environment ── */}
-      <div className="absolute top-16 right-3 z-10 bg-[#020a1ae6] border border-blue-500/10 rounded-lg p-3 min-w-[195px] backdrop-blur-xl pointer-events-auto text-right">
-        <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 mb-2 pb-1.5 border-b border-blue-500/10 flex items-center justify-end gap-1.5">
-          Environment <span className="w-1 h-1 rounded-full bg-blue-400/70" />
-        </h3>
+      {/* ── RIGHT PANEL: Environment (Desktop: always visible / Mobile: modal card on demand) ── */}
+      <div className={`absolute top-14 md:top-16 right-3 md:right-3 left-3 md:left-auto z-20 bg-[#020a1ae6] border border-blue-500/20 rounded-lg p-3 min-w-[210px] max-w-[280px] md:max-w-none backdrop-blur-xl pointer-events-auto text-right shadow-2xl transition-all ${
+        mobileHudTab === 'env' ? 'block' : 'hidden md:block'
+      }`}>
+        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-blue-500/10">
+          <div className="flex md:hidden items-center gap-1">
+            <button
+              onClick={() => setMobileHudTab(null)}
+              className="text-[12px] px-1.5 text-red-400 hover:text-red-300 leading-none"
+            >
+              ✕
+            </button>
+            <button
+              onClick={() => setMobileHudTab('flight')}
+              className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20"
+            >
+              ← Flight
+            </button>
+          </div>
+          <h3 className="text-[9px] uppercase tracking-[2.5px] text-blue-400/70 flex items-center justify-end gap-1.5">
+            Environment <span className="w-1 h-1 rounded-full bg-blue-400/70" />
+          </h3>
+        </div>
         <Row label="Sun Elev." value={`${SUN_ELS[tod].toFixed(1)}°`} right />
         <Row label="Earth Visible" value={EARTH_ELS[tod] > 0 ? 'YES' : 'NO'} cls={EARTH_ELS[tod] > 0 ? 'text-emerald-400' : 'text-red-400'} right />
         <Row label="Earth Elev." value={`${EARTH_ELS[tod].toFixed(1)}°`} right />
@@ -1317,53 +1394,115 @@ export default function LanderSimulation3D({
         )}
       </div>
 
-      {/* ── TOD ICONS ── */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2.5 pointer-events-auto">
+      {/* ── TOD ICONS (Mobile: docked top-right / Desktop: centered right) ── */}
+      <div className="absolute right-3 top-12 md:top-1/2 md:-translate-y-1/2 z-15 flex flex-row md:flex-col gap-1.5 md:gap-2.5 pointer-events-auto">
         {availableTods.map(t => (
           <button key={t} onClick={() => changeTod(t)}
-            className={`w-9 h-9 rounded-lg border flex items-center justify-center text-base transition-all cursor-pointer
-              ${tod === t ? 'bg-blue-500/15 border-blue-500/40' : 'bg-[#020a1ae6] border-blue-500/10 hover:border-blue-500/30'}`}>
+            className={`w-7 h-7 md:w-9 md:h-9 rounded-lg border flex items-center justify-center text-sm md:text-base transition-all cursor-pointer shadow-md
+              ${tod === t ? 'bg-blue-500/20 border-blue-500/50 shadow-blue-500/20' : 'bg-[#020a1ae6] border-blue-500/10 hover:border-blue-500/30'}`}
+            title={LIGHT_NAMES[t]}>
             {['☀️', '🌅', '🌙'][t]}
           </button>
         ))}
       </div>
 
-      {/* ── TOAST ── */}
+      {/* ── TOAST NOTIFICATION ── */}
       {toast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 px-8 py-3 rounded-xl bg-[#020a1af0] border border-blue-500/25 backdrop-blur-xl text-center">
-          <h2 className="text-base font-semibold tracking-[4px] text-blue-300">{toast.n}</h2>
-          <p className="text-[11px] text-gray-400 tracking-wider mt-1">{toast.d}</p>
+        <div className="absolute top-14 md:top-16 left-1/2 -translate-x-1/2 z-30 px-5 md:px-8 py-2 md:py-3 rounded-xl bg-[#020a1af0] border border-blue-500/25 backdrop-blur-xl text-center max-w-[90vw] shadow-2xl">
+          <h2 className="text-sm md:text-base font-semibold tracking-[3px] md:tracking-[4px] text-blue-300">{toast.n}</h2>
+          <p className="text-[10px] md:text-[11px] text-gray-400 tracking-wider mt-0.5">{toast.d}</p>
         </div>
       )}
 
-      {/* ── MANUAL PILOT HUD ── */}
+      {/* ── MANUAL PILOT HUD & ON-SCREEN MOBILE TOUCH CONTROLS ── */}
       {manual && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-[#020a1ae6] border border-blue-500/25 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-            <span className="text-[10px] uppercase tracking-wider text-blue-400/80">Thrust</span>
-            <div className="w-36 h-2 rounded-full bg-blue-500/15 overflow-hidden">
+        <div className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-auto w-[92%] max-w-[420px]">
+          <div className="flex items-center gap-2.5 px-3 md:px-4 py-1.5 md:py-2 rounded-xl bg-[#020a1ae6] border border-blue-500/25 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <span className="text-[9px] md:text-[10px] uppercase tracking-wider text-blue-400/80">Thrust</span>
+            <div className="w-28 md:w-36 h-2 rounded-full bg-blue-500/15 overflow-hidden">
               <div className="h-full rounded-full transition-all duration-100" style={{ width: `${manualThrust}%`, background: 'linear-gradient(90deg, #4aeaaa, #f0a030, #ff4455)' }} />
             </div>
-            <span className="text-[11px] font-mono tabular-nums text-blue-200">{manualThrust.toFixed(0)}%</span>
+            <span className="text-[10px] md:text-[11px] font-mono tabular-nums text-blue-200">{manualThrust.toFixed(0)}%</span>
           </div>
-          <div className="text-[9px] tracking-wider text-blue-300/60 bg-black/40 px-3 py-0.5 rounded-full backdrop-blur-sm">
+
+          {/* Desktop keyboard hint */}
+          <div className="hidden md:block text-[9px] tracking-wider text-blue-300/60 bg-black/40 px-3 py-0.5 rounded-full backdrop-blur-sm">
             W / ↑ Thrust Up · S / ↓ Thrust Down · ← / → RCS Lateral
+          </div>
+
+          {/* On-screen touch flight controller for mobile */}
+          <div className="flex justify-between items-center w-full gap-4 pt-1">
+            {/* Left thumb: RCS Lateral Controls */}
+            <div className="flex gap-2">
+              <button
+                onPointerDown={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.left = true; }}
+                onPointerUp={() => { simRef.current.keys.left = false; }}
+                onPointerLeave={() => { simRef.current.keys.left = false; }}
+                onTouchStart={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.left = true; }}
+                onTouchEnd={() => { simRef.current.keys.left = false; }}
+                className="w-14 h-11 rounded-lg bg-blue-950/80 border border-blue-500/30 text-blue-200 active:bg-blue-600/40 active:border-blue-400 flex flex-col items-center justify-center select-none touch-none transition-all shadow-md"
+                title="RCS Left"
+              >
+                <span className="text-base font-bold leading-none">◄</span>
+                <span className="text-[7.5px] uppercase tracking-wider text-blue-400/80 mt-0.5">RCS L</span>
+              </button>
+              <button
+                onPointerDown={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.right = true; }}
+                onPointerUp={() => { simRef.current.keys.right = false; }}
+                onPointerLeave={() => { simRef.current.keys.right = false; }}
+                onTouchStart={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.right = true; }}
+                onTouchEnd={() => { simRef.current.keys.right = false; }}
+                className="w-14 h-11 rounded-lg bg-blue-950/80 border border-blue-500/30 text-blue-200 active:bg-blue-600/40 active:border-blue-400 flex flex-col items-center justify-center select-none touch-none transition-all shadow-md"
+                title="RCS Right"
+              >
+                <span className="text-base font-bold leading-none">►</span>
+                <span className="text-[7.5px] uppercase tracking-wider text-blue-400/80 mt-0.5">RCS R</span>
+              </button>
+            </div>
+
+            {/* Right thumb: Thrust Up / Down */}
+            <div className="flex gap-2">
+              <button
+                onPointerDown={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.thrustUp = true; }}
+                onPointerUp={() => { simRef.current.keys.thrustUp = false; }}
+                onPointerLeave={() => { simRef.current.keys.thrustUp = false; }}
+                onTouchStart={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.thrustUp = true; }}
+                onTouchEnd={() => { simRef.current.keys.thrustUp = false; }}
+                className="w-16 h-11 rounded-lg bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 active:bg-emerald-600/40 active:border-emerald-300 flex flex-col items-center justify-center select-none touch-none transition-all shadow-md"
+                title="Thrust Up"
+              >
+                <span className="text-base font-bold leading-none">▲</span>
+                <span className="text-[7.5px] uppercase tracking-wider text-emerald-400/90 mt-0.5">THRUST +</span>
+              </button>
+              <button
+                onPointerDown={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.thrustDown = true; }}
+                onPointerUp={() => { simRef.current.keys.thrustDown = false; }}
+                onPointerLeave={() => { simRef.current.keys.thrustDown = false; }}
+                onTouchStart={(e) => { e.preventDefault(); ensureAudio(); simRef.current.keys.thrustDown = true; }}
+                onTouchEnd={() => { simRef.current.keys.thrustDown = false; }}
+                className="w-16 h-11 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-200 active:bg-amber-600/40 active:border-amber-300 flex flex-col items-center justify-center select-none touch-none transition-all shadow-md"
+                title="Thrust Down"
+              >
+                <span className="text-base font-bold leading-none">▼</span>
+                <span className="text-[7.5px] uppercase tracking-wider text-amber-400/90 mt-0.5">THRUST −</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── LANDING RESULT OVERLAY ── */}
       {landingResult && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md">
-          <div className="text-center p-8 rounded-2xl border border-blue-500/30 bg-[#020a1af8] shadow-[0_0_60px_rgba(70,140,255,0.2)] max-w-sm w-full mx-4">
-            <div className="text-5xl mb-3">{landingResult.hardLanding ? '💥' : '🌕'}</div>
-            <h2 className={`text-2xl font-bold tracking-widest mb-1 ${landingResult.hardLanding ? 'text-red-400' : 'text-emerald-400'}`}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+          <div className="text-center p-6 md:p-8 rounded-2xl border border-blue-500/30 bg-[#020a1af8] shadow-[0_0_60px_rgba(70,140,255,0.2)] max-w-sm w-full mx-auto">
+            <div className="text-4xl md:text-5xl mb-2 md:mb-3">{landingResult.hardLanding ? '💥' : '🌕'}</div>
+            <h2 className={`text-xl md:text-2xl font-bold tracking-widest mb-1 ${landingResult.hardLanding ? 'text-red-400' : 'text-emerald-400'}`}>
               {landingResult.hardLanding ? 'CRASH LANDING' : 'PERFECT SOFT LANDING'}
             </h2>
-            <p className="text-xs text-gray-400 tracking-wider mb-5">
+            <p className="text-xs text-gray-400 tracking-wider mb-4 md:mb-5">
               {landingResult.hardLanding ? 'Impact velocity too high (> 3 m/s) — mission failed' : 'Nominal touchdown (< 3 m/s) — mission accomplished ✓'}
             </p>
-            <div className="text-xs text-blue-200 space-y-1.5 mb-6 text-left bg-blue-950/40 border border-blue-500/20 rounded-lg p-3">
+            <div className="text-xs text-blue-200 space-y-1.5 mb-5 md:mb-6 text-left bg-blue-950/40 border border-blue-500/20 rounded-lg p-3">
               <div className="flex justify-between"><span className="text-gray-400">Fuel Remaining</span><span className="font-mono">{landingResult.fuel.toFixed(0)}%</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Mission Time</span><span className="font-mono">{landingResult.time}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Control Mode</span><span className="font-mono text-blue-300">{landingResult.mode}</span></div>
@@ -1377,19 +1516,19 @@ export default function LanderSimulation3D({
       )}
 
       {/* ── BOTTOM CONTROLS ── */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto">
-        <div className="flex items-center justify-center gap-2.5 px-4 py-3.5 bg-gradient-to-t from-[#020408f0] via-[#02040899] to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-center gap-1.5 md:gap-2.5 px-2 md:px-4 py-2 md:py-3.5 bg-gradient-to-t from-[#020408f0] via-[#02040899] to-transparent">
           <Btn primary onClick={toggleSim} disabled={tel.phase >= 5}>
-            {tel.phase === 0 ? '▶ Begin Descent' : status === 'PAUSED' ? '▶ Resume' : tel.phase >= 5 ? '✓ Landed' : '⏸ Pause'}
+            {tel.phase === 0 ? <span>▶ <span className="hidden sm:inline">Begin </span>Descent</span> : status === 'PAUSED' ? '▶ Resume' : tel.phase >= 5 ? '✓ Landed' : '⏸ Pause'}
           </Btn>
-          <Btn onClick={resetSim}>↺ Reset</Btn>
-          <Btn onClick={cycleCam}>📷 {CAM_NAMES[cam]}</Btn>
+          <Btn onClick={resetSim}>↺ <span className="hidden sm:inline">Reset</span></Btn>
+          <Btn onClick={cycleCam}>📷 <span className="hidden sm:inline">{CAM_NAMES[cam]}</span><span className="sm:hidden">Cam</span></Btn>
           <Btn onClick={cycleSpd}>⏱ {speed}×</Btn>
-          <Btn onClick={toggleManual} primary={manual}>🕹️ {manual ? 'Manual Pilot' : 'Auto Pilot'}</Btn>
+          <Btn onClick={toggleManual} primary={manual}>🕹️ <span className="hidden sm:inline">{manual ? 'Manual Pilot' : 'Auto Pilot'}</span><span className="sm:hidden">{manual ? 'Manual' : 'Auto'}</span></Btn>
         </div>
 
         {/* Keyboard hints */}
-        <div className="flex items-center justify-center gap-4 pb-2 text-[9px] text-gray-600 tracking-wider">
+        <div className="hidden md:flex items-center justify-center gap-4 pb-2 text-[9px] text-gray-600 tracking-wider">
           <span>SPACE — start/pause</span>
           <span>M — manual pilot</span>
           <span>W/S or ↑/↓ — thrust</span>
@@ -1406,7 +1545,7 @@ export default function LanderSimulation3D({
 
 function Row({ label, value, cls = '', right = false }) {
   return (
-    <div className={`flex justify-between items-center py-[2px] text-[11.5px] ${right ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex justify-between items-center py-[2px] text-[11px] md:text-[11.5px] ${right ? 'flex-row-reverse' : ''}`}>
       <span className="text-gray-500">{label}</span>
       <span className={`font-medium tabular-nums text-gray-100 ${cls}`}>{value}</span>
     </div>
@@ -1416,10 +1555,10 @@ function Row({ label, value, cls = '', right = false }) {
 function Btn({ children, onClick, primary, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-[11px] tracking-wider uppercase transition-all cursor-pointer
+      className={`flex items-center justify-center gap-1 px-2.5 md:px-4 py-2 md:py-2.5 rounded-lg text-[10px] md:text-[11px] tracking-wider uppercase transition-all cursor-pointer min-h-[34px] select-none
         ${primary
-          ? 'bg-gradient-to-br from-blue-600/30 to-blue-500/15 border border-blue-500/35 text-blue-200 hover:from-blue-600/45 hover:border-blue-400/50'
-          : 'bg-[#14284650] border border-blue-500/15 text-blue-300/70 hover:bg-blue-500/10 hover:border-blue-500/30 hover:text-blue-200'}
+          ? 'bg-gradient-to-br from-blue-600/35 to-blue-500/20 border border-blue-500/40 text-blue-200 hover:from-blue-600/50 hover:border-blue-400/60'
+          : 'bg-[#14284660] border border-blue-500/20 text-blue-300/80 hover:bg-blue-500/15 hover:border-blue-500/35 hover:text-blue-100'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}>
       {children}
     </button>

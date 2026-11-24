@@ -238,7 +238,11 @@ export default function MissionConfigPage({
     return () => clearInterval(iv);
   }, []);
 
+  // Always scroll to top when mounting or switching steps
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     setAnimateIn(true);
     const t = setTimeout(() => setAnimateIn(false), 600);
     return () => clearTimeout(t);
@@ -547,7 +551,10 @@ export default function MissionConfigPage({
             </div>
 
             <button
-              onClick={() => setStep(2)}
+              onClick={() => {
+                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                setStep(2);
+              }}
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl cursor-pointer
                 bg-gradient-to-br from-blue-600 to-blue-500 text-white font-medium text-sm tracking-wide
                 shadow-[0_4px_25px_rgba(26,138,255,0.3)] hover:shadow-[0_8px_35px_rgba(26,138,255,0.4)]

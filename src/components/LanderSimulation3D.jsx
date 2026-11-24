@@ -614,6 +614,68 @@ function getTodFromElev(sunElev) {
 }
 
 // ═══════════════════════════════════════
+//  WEB AUDIO SYNTHESIZER
+// ═══════════════════════════════════════
+
+let audioCtx = null;
+let engineOscNode = null;
+let engineGainNode = null;
+
+function ensureAudio() {
+  if (audioCtx) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    osc1.type = 'sawtooth'; osc1.frequency.value = 55;
+    osc2.type = 'sawtooth'; osc2.frequency.value = 58;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = 220;
+    engineGainNode = audioCtx.createGain();
+    engineGainNode.gain.value = 0;
+    osc1.connect(filter); osc2.connect(filter);
+    filter.connect(engineGainNode);
+    engineGainNode.connect(audioCtx.destination);
+    osc1.start(); osc2.start();
+    engineOscNode = osc1;
+  } catch {}
+}
+
+function updateEngineAudio(thrustPct) {
+  if (!audioCtx || !engineGainNode) return;
+  const targetGain = (thrustPct / 100) * 0.18;
+  engineGainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.12);
+  if (engineOscNode) {
+    engineOscNode.frequency.setTargetAtTime(50 + thrustPct * 0.6, audioCtx.currentTime, 0.1);
+  }
+}
+
+function beepPhase(freq = 880, dur = 0.12, vol = 0.25) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'square'; osc.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + dur + 0.05);
+  } catch {}
+}
+
+function playLandingAudio(hardLanding) {
+  ensureAudio();
+  if (!audioCtx) return;
+  if (hardLanding) {
+    beepPhase(220, 0.6, 0.35);
+  } else {
+    beepPhase(880, 0.1, 0.2);
+    setTimeout(() => beepPhase(1100, 0.15, 0.25), 150);
+    setTimeout(() => beepPhase(1320, 0.25, 0.3), 320);
+  }
+}
+
+// ═══════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════
 
@@ -635,16 +697,9 @@ export default function LanderSimulation3D({
   const sunElev = getSunElevFromConfig(missionConfig);
   const earthElev = getEarthElevFromConfig(missionConfig);
 
-  // Filter available time-of-day modes based on actual sun elevation at landing
-  const availableTods = useMemo(() => {
-    const tods = [];
-    if (sunElev > 10)  tods.push(0); // Day — sun well above horizon
-    if (sunElev > 0)   tods.push(1); // Twilight — sun just above horizon
-    tods.push(2);                    // Night — always available
-    return tods;
-  }, [sunElev]);
-
-  const initialTod = availableTods[0]; // best available lighting
+  // Available time-of-day modes: allow Day (0), Twilight (1), Night (2)
+  const availableTods = useMemo(() => [0, 1, 2], []);
+  const initialTod = sunElev > 10 ? 0 : sunElev > 0 ? 1 : 2;
 
   // Use actual elevation values per mode (fall back to defaults when mode isn't physically valid)
   const SUN_ELS = [
@@ -666,6 +721,9 @@ export default function LanderSimulation3D({
     fuel: 100, thrust: 0, tod: initialTod,
     cam: initialCamera, si: SPEEDS.indexOf(initialSpeed) >= 0 ? SPEEDS.indexOf(initialSpeed) : 0,
     cinematicAngle: 0,
+    manual: false,
+    manualThrust: 0,
+    keys: { thrustUp: false, thrustDown: false, left: false, right: false },
   });
 
   const [tel, setTel] = useState({
@@ -676,6 +734,9 @@ export default function LanderSimulation3D({
   const [speed, setSpeed] = useState(initialSpeed);
   const [status, setStatus] = useState('STANDBY');
   const [toast, setToast] = useState(null);
+  const [manual, setManual] = useState(false);
+  const [manualThrust, setManualThrust] = useState(0);
+  const [landingResult, setLandingResult] = useState(null);
 
   // Format coordinates string
   const coordStr = siteLat != null && siteLon != null
@@ -755,11 +816,17 @@ export default function LanderSimulation3D({
     rimLight.position.set(-500, MOON_R, -500);
     scene.add(rimLight);
 
+    // Earthshine: soft blue-cyan light from Earth's position onto the lunar surface
+    const earthshineLight = new THREE.DirectionalLight(0x5599ff, 0);
+    earthshineLight.position.copy(earthData.group.position);
+    scene.add(earthshineLight);
+
     // Position Sun and Earth from actual data
     const S = simRef.current;
     positionCelestialBody(sunMesh, SUN_ELS[S.tod], 45, 4000);
     positionCelestialBody(earthData.group, EARTH_ELS[S.tod], -30, 2200);
     sunLight.position.copy(sunMesh.position);
+    earthshineLight.position.copy(earthData.group.position);
     landerGroup.position.set(0, MOON_R + S.alt * 0.003 + 0.5, 0);
 
     // Dust system
@@ -768,9 +835,9 @@ export default function LanderSimulation3D({
 
     function applyTOD() {
       const cfgs = [
-        { si: 2.2, sc: 0xffffff, ai: 0.14, ac: 0x223344, exp: 1.2 },
-        { si: 0.55, sc: 0xffaa66, ai: 0.06, ac: 0x111122, exp: 0.5 },
-        { si: 0.04, sc: 0x4466aa, ai: 0.025, ac: 0x060612, exp: 0.22 },
+        { si: 2.2,  sc: 0xffffff, ai: 0.14,  ac: 0x223344, exp: 1.2,  esi: 0.0 },
+        { si: 0.65, sc: 0xffaa66, ai: 0.10,  ac: 0x1c2438, exp: 0.7,  esi: 0.15 },
+        { si: 0.08, sc: 0x5588cc, ai: 0.28,  ac: 0x182844, exp: 0.95, esi: 1.1 },
       ];
       const c = cfgs[S.tod];
       sunLight.intensity = c.si; sunLight.color.set(c.sc);
@@ -779,6 +846,9 @@ export default function LanderSimulation3D({
       positionCelestialBody(sunMesh, SUN_ELS[S.tod], 45, 4000);
       positionCelestialBody(earthData.group, EARTH_ELS[S.tod], -30, 2200);
       sunLight.position.copy(sunMesh.position);
+      earthshineLight.intensity = c.esi;
+      earthshineLight.color.set(0x70a8ff);
+      earthshineLight.position.copy(earthData.group.position);
     }
     applyTOD();
 
@@ -808,31 +878,82 @@ export default function LanderSimulation3D({
         refs.moonData.ring2.material.opacity = 0.1 + Math.sin(elapsed * 3) * 0.06;
       }
 
+      // Audio update
+      updateEngineAudio(simRef.current.thrust);
+
       // Simulation tick
       const S = simRef.current;
       if (S.on && S.phase > 0 && S.phase < 5) {
         const d = dt * S.speed;
         S.t += d;
-        switch (S.phase) {
-          case 1: S.alt -= d * 200; S.hVel -= d * 30; S.vSpd = -200 + (15000 - S.alt) * .01; S.fuel -= d * .5; S.thrust = 100;
-            if (S.alt <= 7000) { S.phase = 2; showToast(2); } break;
-          case 2: S.alt -= d * 120; S.hVel -= d * 25; S.vSpd = -120 + (7000 - S.alt) * .005; S.fuel -= d * .4; S.thrust = 80;
-            if (S.alt <= 2000) { S.phase = 3; showToast(3); } break;
-          case 3: S.alt -= d * 50; S.hVel -= d * 20; S.vSpd = -50 + (2000 - S.alt) * .02; S.fuel -= d * .3; S.thrust = 60;
-            if (S.alt <= 100) { S.phase = 4; showToast(4); } break;
-          case 4: S.alt -= d * 5; S.hVel *= .98; S.vSpd = -2 - S.alt * .02; S.fuel -= d * .2; S.thrust = 30 + S.alt * .3;
-            // Activate dust when below 50m
-            if (S.alt < 50 && !refs.dustSystem.userData.active) {
-              refs.dustSystem.visible = true;
-              refs.dustSystem.userData.active = true;
-              refs.dustSystem.position.set(0, MOON_R + 0.1, 0);
-            }
-            if (S.alt <= 0) {
-              S.alt = 0; S.hVel = 0; S.vSpd = 0; S.thrust = 0; S.phase = 5; S.on = false;
-              showToast(5);
-              if (refs.thrusterSystem) refs.thrusterSystem.visible = false;
-              setStatus('LANDED');
-            } break;
+
+        if (S.manual) {
+          // Manual Pilot Mode
+          if (S.keys.thrustUp)   S.manualThrust = Math.min(100, S.manualThrust + d * 60);
+          if (S.keys.thrustDown) S.manualThrust = Math.max(0,   S.manualThrust - d * 60);
+          if (S.keys.left)       S.hVel = Math.max(0, S.hVel - d * 40);
+          if (S.keys.right)      S.hVel = Math.min(1680, S.hVel + d * 20);
+
+          const gravity = 1.62;
+          const thrustAccel = (S.manualThrust / 100) * 5.0;
+          S.vSpd += (gravity - thrustAccel) * -d;
+          S.alt += S.vSpd * d;
+          S.hVel = Math.max(0, S.hVel - d * 8);
+          if (S.fuel > 0 && S.manualThrust > 0) S.fuel -= d * (S.manualThrust / 100) * 0.6;
+          S.fuel = Math.max(0, S.fuel);
+          if (S.fuel === 0) S.manualThrust = 0;
+          S.thrust = S.manualThrust;
+          setManualThrust(S.manualThrust);
+
+          if (S.phase === 1 && S.alt <= 7000) { S.phase = 2; showToast(2); }
+          else if (S.phase === 2 && S.alt <= 2000) { S.phase = 3; showToast(3); }
+          else if (S.phase === 3 && S.alt <= 100) { S.phase = 4; showToast(4); }
+
+          if (S.alt < 50 && !refs.dustSystem.userData.active) {
+            refs.dustSystem.visible = true;
+            refs.dustSystem.userData.active = true;
+            refs.dustSystem.position.set(0, MOON_R + 0.1, 0);
+          }
+
+          if (S.alt <= 0) {
+            S.alt = 0; S.hVel = 0;
+            const hardLanding = Math.abs(S.vSpd) > 3;
+            S.vSpd = 0; S.thrust = 0; S.phase = 5; S.on = false;
+            showToast(5);
+            if (refs.thrusterSystem) refs.thrusterSystem.visible = false;
+            setStatus('LANDED');
+            const mins = Math.floor(S.t / 60), secs = Math.floor(S.t % 60);
+            const timeStr = `T+ ${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            setLandingResult({ hardLanding, fuel: S.fuel, time: timeStr, mode: 'MANUAL PILOT' });
+            playLandingAudio(hardLanding);
+          }
+        } else {
+          // Auto Pilot Mode
+          switch (S.phase) {
+            case 1: S.alt -= d * 200; S.hVel -= d * 30; S.vSpd = -200 + (15000 - S.alt) * .01; S.fuel -= d * .5; S.thrust = 100;
+              if (S.alt <= 7000) { S.phase = 2; showToast(2); } break;
+            case 2: S.alt -= d * 120; S.hVel -= d * 25; S.vSpd = -120 + (7000 - S.alt) * .005; S.fuel -= d * .4; S.thrust = 80;
+              if (S.alt <= 2000) { S.phase = 3; showToast(3); } break;
+            case 3: S.alt -= d * 50; S.hVel -= d * 20; S.vSpd = -50 + (2000 - S.alt) * .02; S.fuel -= d * .3; S.thrust = 60;
+              if (S.alt <= 100) { S.phase = 4; showToast(4); } break;
+            case 4: S.alt -= d * 5; S.hVel *= .98; S.vSpd = -2 - S.alt * .02; S.fuel -= d * .2; S.thrust = 30 + S.alt * .3;
+              // Activate dust when below 50m
+              if (S.alt < 50 && !refs.dustSystem.userData.active) {
+                refs.dustSystem.visible = true;
+                refs.dustSystem.userData.active = true;
+                refs.dustSystem.position.set(0, MOON_R + 0.1, 0);
+              }
+              if (S.alt <= 0) {
+                S.alt = 0; S.hVel = 0; S.vSpd = 0; S.thrust = 0; S.phase = 5; S.on = false;
+                showToast(5);
+                if (refs.thrusterSystem) refs.thrusterSystem.visible = false;
+                setStatus('LANDED');
+                const mins = Math.floor(S.t / 60), secs = Math.floor(S.t % 60);
+                const timeStr = `T+ ${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                setLandingResult({ hardLanding: false, fuel: S.fuel, time: timeStr, mode: 'AUTO PILOT' });
+                playLandingAudio(false);
+              } break;
+          }
         }
         S.alt = Math.max(0, S.alt); S.hVel = Math.max(0, S.hVel); S.fuel = Math.max(0, S.fuel);
         refs.landerGroup.position.set(0, MOON_R + Math.max(S.alt, 0) * 0.003 + 0.5, 0);
@@ -967,10 +1088,14 @@ export default function LanderSimulation3D({
 
   function showToast(pi) {
     setToast(PHASES[pi]);
+    ensureAudio();
+    const freqs = [0, 660, 700, 740, 780, 900];
+    if (freqs[pi]) beepPhase(freqs[pi]);
     setTimeout(() => setToast(null), 3000);
   }
 
   const toggleSim = useCallback(() => {
+    ensureAudio();
     const S = simRef.current;
     const refs = sceneRef.current;
     if (!refs || S.phase >= 5) return;
@@ -979,7 +1104,7 @@ export default function LanderSimulation3D({
       setStatus('PAUSED');
     } else {
       if (S.phase === 0) {
-        S.phase = 1; S.thrust = 100;
+        S.phase = 1; S.thrust = S.manual ? S.manualThrust : 100;
         showToast(1);
         const ts = makeThruster();
         refs.landerGroup.add(ts);
@@ -996,7 +1121,7 @@ export default function LanderSimulation3D({
     const refs = sceneRef.current;
     if (!refs) return;
     S.on = false; S.phase = 0; S.t = 0; S.alt = 15000; S.hVel = 1680; S.vSpd = -120;
-    S.fuel = 100; S.thrust = 0; S.cinematicAngle = 0;
+    S.fuel = 100; S.thrust = 0; S.cinematicAngle = 0; S.manualThrust = 0;
     refs.landerGroup.position.set(0, MOON_R + S.alt * 0.003 + 0.5, 0);
     refs.landerGroup.rotation.set(0, 0, 0);
     if (refs.thrusterSystem) {
@@ -1008,6 +1133,8 @@ export default function LanderSimulation3D({
       refs.dustSystem.userData.active = false;
     }
     setTel({ alt: 15000, hVel: 1680, vSpd: -120, fuel: 100, thrust: 0, phase: 0, t: 0 });
+    setManualThrust(0);
+    setLandingResult(null);
     setStatus('STANDBY');
   }, []);
 
@@ -1025,7 +1152,7 @@ export default function LanderSimulation3D({
   }, []);
 
   const changeTod = useCallback((t) => {
-    if (!availableTods.includes(t)) return; // sun below horizon — mode not available
+    if (!availableTods.includes(t)) return;
     const S = simRef.current;
     const refs = sceneRef.current;
     if (!refs) return;
@@ -1034,22 +1161,54 @@ export default function LanderSimulation3D({
     setTod(t);
   }, [availableTods]);
 
+  const toggleManual = useCallback(() => {
+    ensureAudio();
+    const S = simRef.current;
+    S.manual = !S.manual;
+    if (S.manual) {
+      S.manualThrust = S.thrust;
+      setManualThrust(S.manualThrust);
+    }
+    setManual(S.manual);
+  }, []);
+
   // Keyboard
   useEffect(() => {
-    const handler = (e) => {
+    const downHandler = (e) => {
+      const S = simRef.current;
+      ensureAudio();
       switch (e.key.toLowerCase()) {
         case ' ': e.preventDefault(); toggleSim(); break;
         case 'r': resetSim(); break;
         case 'c': cycleCam(); break;
         case 'v': cycleSpd(); break;
+        case 'm': toggleManual(); break;
         case '1': changeTod(0); break;
         case '2': changeTod(1); break;
         case '3': changeTod(2); break;
+        case 'w': case 'arrowup': S.keys.thrustUp = true; break;
+        case 's': if (S.manual) { S.keys.thrustDown = true; } else { cycleSpd(); } break;
+        case 'arrowdown': S.keys.thrustDown = true; break;
+        case 'arrowleft': S.keys.left = true; break;
+        case 'arrowright': S.keys.right = true; break;
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [toggleSim, resetSim, cycleCam, cycleSpd, changeTod]);
+    const upHandler = (e) => {
+      const S = simRef.current;
+      switch (e.key.toLowerCase()) {
+        case 'w': case 'arrowup': S.keys.thrustUp = false; break;
+        case 's': case 'arrowdown': S.keys.thrustDown = false; break;
+        case 'arrowleft': S.keys.left = false; break;
+        case 'arrowright': S.keys.right = false; break;
+      }
+    };
+    window.addEventListener('keydown', downHandler);
+    window.addEventListener('keyup', upHandler);
+    return () => {
+      window.removeEventListener('keydown', downHandler);
+      window.removeEventListener('keyup', upHandler);
+    };
+  }, [toggleSim, resetSim, cycleCam, cycleSpd, changeTod, toggleManual]);
 
   // ── Format helpers ──
   const fmtAlt = tel.alt >= 1000 ? (tel.alt / 1000).toFixed(2) + ' km' : tel.alt.toFixed(1) + ' m';
@@ -1099,6 +1258,23 @@ export default function LanderSimulation3D({
           <span className="w-1 h-1 rounded-full bg-blue-400/70" /> Flight Telemetry
         </h3>
         <Row label="Altitude" value={fmtAlt} />
+        {/* Integrated Altitude Gauge */}
+        <div className="my-1.5 px-0.5">
+          <div className="w-full h-1.5 rounded-full bg-blue-950/80 border border-blue-500/20 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-200"
+              style={{
+                width: `${altPct}%`,
+                background: 'linear-gradient(90deg, #4aeaaa 0%, #4a90cc 60%, #60a5fa 100%)',
+              }}
+            />
+          </div>
+          <div className="flex justify-between text-[7px] text-gray-500 font-mono tracking-wider mt-0.5">
+            <span>0m</span>
+            <span>7.5km</span>
+            <span>15km</span>
+          </div>
+        </div>
         <Row label="H-Velocity" value={`${tel.hVel.toFixed(0)} m/s`} />
         <Row label="V-Speed" value={`${tel.vSpd.toFixed(1)} m/s`} cls={Math.abs(tel.vSpd) > 100 ? 'text-red-400' : Math.abs(tel.vSpd) > 50 ? 'text-amber-400' : ''} />
         <Row label="Thrust" value={`${tel.thrust.toFixed(0)} %`} />
@@ -1141,13 +1317,6 @@ export default function LanderSimulation3D({
         )}
       </div>
 
-      {/* ── ALTITUDE GAUGE ── */}
-      <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-[28px] h-[240px] rounded-full bg-[#020a1ae6] border border-blue-500/10 overflow-hidden backdrop-blur-xl">
-        <div className="absolute bottom-0 left-0 right-0 rounded-b-full transition-all duration-300 opacity-70"
-          style={{ height: `${altPct}%`, background: 'linear-gradient(0deg, #4aeaaa, #4a90cc 50%, #4a60cc)' }} />
-        <div className="absolute top-1 left-0 right-0 text-center text-[7px] text-blue-300/50 tracking-wider">ALT</div>
-      </div>
-
       {/* ── TOD ICONS ── */}
       <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-2.5 pointer-events-auto">
         {availableTods.map(t => (
@@ -1167,6 +1336,46 @@ export default function LanderSimulation3D({
         </div>
       )}
 
+      {/* ── MANUAL PILOT HUD ── */}
+      {manual && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-auto">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-[#020a1ae6] border border-blue-500/25 backdrop-blur-xl shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+            <span className="text-[10px] uppercase tracking-wider text-blue-400/80">Thrust</span>
+            <div className="w-36 h-2 rounded-full bg-blue-500/15 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-100" style={{ width: `${manualThrust}%`, background: 'linear-gradient(90deg, #4aeaaa, #f0a030, #ff4455)' }} />
+            </div>
+            <span className="text-[11px] font-mono tabular-nums text-blue-200">{manualThrust.toFixed(0)}%</span>
+          </div>
+          <div className="text-[9px] tracking-wider text-blue-300/60 bg-black/40 px-3 py-0.5 rounded-full backdrop-blur-sm">
+            W / ↑ Thrust Up · S / ↓ Thrust Down · ← / → RCS Lateral
+          </div>
+        </div>
+      )}
+
+      {/* ── LANDING RESULT OVERLAY ── */}
+      {landingResult && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md">
+          <div className="text-center p-8 rounded-2xl border border-blue-500/30 bg-[#020a1af8] shadow-[0_0_60px_rgba(70,140,255,0.2)] max-w-sm w-full mx-4">
+            <div className="text-5xl mb-3">{landingResult.hardLanding ? '💥' : '🌕'}</div>
+            <h2 className={`text-2xl font-bold tracking-widest mb-1 ${landingResult.hardLanding ? 'text-red-400' : 'text-emerald-400'}`}>
+              {landingResult.hardLanding ? 'CRASH LANDING' : 'PERFECT SOFT LANDING'}
+            </h2>
+            <p className="text-xs text-gray-400 tracking-wider mb-5">
+              {landingResult.hardLanding ? 'Impact velocity too high (> 3 m/s) — mission failed' : 'Nominal touchdown (< 3 m/s) — mission accomplished ✓'}
+            </p>
+            <div className="text-xs text-blue-200 space-y-1.5 mb-6 text-left bg-blue-950/40 border border-blue-500/20 rounded-lg p-3">
+              <div className="flex justify-between"><span className="text-gray-400">Fuel Remaining</span><span className="font-mono">{landingResult.fuel.toFixed(0)}%</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Mission Time</span><span className="font-mono">{landingResult.time}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Control Mode</span><span className="font-mono text-blue-300">{landingResult.mode}</span></div>
+            </div>
+            <button onClick={() => setLandingResult(null)}
+              className="w-full py-2.5 rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-200 hover:bg-blue-500/30 text-xs tracking-widest uppercase transition-all cursor-pointer">
+              Continue →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── BOTTOM CONTROLS ── */}
       <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto">
         <div className="flex items-center justify-center gap-2.5 px-4 py-3.5 bg-gradient-to-t from-[#020408f0] via-[#02040899] to-transparent">
@@ -1176,14 +1385,16 @@ export default function LanderSimulation3D({
           <Btn onClick={resetSim}>↺ Reset</Btn>
           <Btn onClick={cycleCam}>📷 {CAM_NAMES[cam]}</Btn>
           <Btn onClick={cycleSpd}>⏱ {speed}×</Btn>
+          <Btn onClick={toggleManual} primary={manual}>🕹️ {manual ? 'Manual Pilot' : 'Auto Pilot'}</Btn>
         </div>
 
         {/* Keyboard hints */}
         <div className="flex items-center justify-center gap-4 pb-2 text-[9px] text-gray-600 tracking-wider">
           <span>SPACE — start/pause</span>
+          <span>M — manual pilot</span>
+          <span>W/S or ↑/↓ — thrust</span>
           <span>R — reset</span>
           <span>C — camera</span>
-          <span>V — speed</span>
           <span>1/2/3 — lighting</span>
         </div>
       </div>

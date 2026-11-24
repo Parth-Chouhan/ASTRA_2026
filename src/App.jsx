@@ -66,7 +66,15 @@ export default function App() {
 
   // ── Page Flow: Landing → Config → Full-Screen Simulator ──
   if (showLanding) {
-    return <LandingPage onEnter={() => { setShowLanding(false); setShowConfig(true); }} />;
+    return (
+      <LandingPage
+        onEnter={() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          setShowLanding(false);
+          setShowConfig(true);
+        }}
+      />
+    );
   }
 
   if (showConfig) {
@@ -82,8 +90,14 @@ export default function App() {
         data={data}
         initialStep={configStep}
         initialConfig={missionConfig}
-        onBack={() => { setShowConfig(false); setShowLanding(true); setConfigStep(1); }}
+        onBack={() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          setShowConfig(false);
+          setShowLanding(true);
+          setConfigStep(1);
+        }}
         onLaunch={(config) => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
           setMissionConfig(config);
           setSiteId(config.siteId);
           setShowConfig(false);
@@ -123,6 +137,7 @@ export default function App() {
       missionConfig={missionConfig}
       siteData={site}
       onBack={() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         setShowConfig(true);
         setConfigStep(2); // Return to Step 2 (Dates & Mission Calendar)
       }}
